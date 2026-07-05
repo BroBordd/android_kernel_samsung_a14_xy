@@ -79,17 +79,43 @@ static inline bool is_pkvm_initialized(void)
 }
 
 /* Reports the availability of HYP mode */
-static inline bool is_hyp_mode_available(void)
+/*static inline bool is_hyp_mode_available(void)
 {
-	/*
-	 * If KVM protected mode is initialized, all CPUs must have been booted
-	 * in EL2. Avoid checking __boot_cpu_mode as CPUs now come up in EL1.
-	 */
 	if (is_pkvm_initialized())
 		return true;
 
 	return (__boot_cpu_mode[0] == BOOT_CPU_MODE_EL2 &&
 		__boot_cpu_mode[1] == BOOT_CPU_MODE_EL2);
+}*/
+
+static inline bool is_hyp_mode_available(void)
+{
+	bool pkvm_init;
+	bool cpu0_el2;
+	bool cpu1_el2;
+	unsigned int cur_el;
+
+	cur_el = (unsigned int)(read_sysreg(CurrentEL) >> 2);
+	pkvm_init = is_pkvm_initialized();
+	cpu0_el2 = (__boot_cpu_mode[0] == BOOT_CPU_MODE_EL2);
+	cpu1_el2 = (__boot_cpu_mode[1] == BOOT_CPU_MODE_EL2);
+
+	printk(KERN_ERR "BOMB is_hyp_mode_available: ENTER, CurrentEL=%u\n", cur_el);
+	printk(KERN_ERR "BOMB is_hyp_mode_available: is_pkvm_initialized=%d\n", pkvm_init);
+	printk(KERN_ERR "BOMB is_hyp_mode_available: __boot_cpu_mode[0]=0x%x (EL2=0x%x) match=%d\n",
+	       __boot_cpu_mode[0], BOOT_CPU_MODE_EL2, cpu0_el2);
+	printk(KERN_ERR "BOMB is_hyp_mode_available: __boot_cpu_mode[1]=0x%x (EL2=0x%x) match=%d\n",
+	       __boot_cpu_mode[1], BOOT_CPU_MODE_EL2, cpu1_el2);
+
+	if (pkvm_init) {
+		printk(KERN_ERR "BOMB is_hyp_mode_available: EXIT via pkvm_init, returning true\n");
+		return true;
+	}
+
+	printk(KERN_ERR "BOMB is_hyp_mode_available: EXIT via boot_cpu_mode, returning %d\n",
+	       cpu0_el2 && cpu1_el2);
+
+	return cpu0_el2 && cpu1_el2;
 }
 
 /* Check if the bootloader has booted CPUs in different modes */

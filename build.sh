@@ -23,10 +23,12 @@ if [ ! -x "$CLANG_DIR/bin/clang" ]; then
     curl -L --fail "$CLANG_URL" | tar -xz -C "$CLANG_DIR"
 fi
 
-# 2. KernelSU
-if [ ! -e drivers/kernelsu/Kconfig ]; then
-    echo "[+] KernelSU missing, setting up..."
-    curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s -
+# 2. KernelSU-Next
+if [ ! -e KernelSU-Next/kernel/Kconfig ] || [ "$(readlink drivers/kernelsu 2>/dev/null)" != "../KernelSU-Next/kernel" ]; then
+    echo "[+] KernelSU-Next missing, setting up..."
+    rm -rf KernelSU            # remove old upstream KernelSU if present
+    rm -f drivers/kernelsu     # drop old symlink so setup relinks cleanly
+    curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/dev/kernel/setup.sh" | bash -s -
 fi
 if ! grep -q '^CONFIG_KSU=y' "$DEFCONFIG_FILE"; then
     echo "CONFIG_KSU=y" >> "$DEFCONFIG_FILE"

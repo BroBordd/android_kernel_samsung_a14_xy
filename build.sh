@@ -9,6 +9,13 @@ CLANG_URL="https://github.com/ravindu644/Android-Kernel-Tutorials/releases/downl
 DEFCONFIG="exynos850-a14nsxx_defconfig"
 DEFCONFIG_FILE="arch/arm64/configs/$DEFCONFIG"
 
+# 0. Host dependency: pahole (dwarves) is needed for BTF generation
+if ! command -v pahole >/dev/null 2>&1; then
+    echo "[+] pahole missing, installing dwarves..."
+    SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO="sudo"
+    $SUDO apt-get update -y && $SUDO apt-get install -y dwarves
+fi
+
 # 1. Toolchain
 if [ ! -x "$CLANG_DIR/bin/clang" ]; then
     echo "[+] Toolchain missing, downloading clang-r450784e..."

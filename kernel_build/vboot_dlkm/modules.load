@@ -10,9 +10,6 @@ i2c-exynos5.ko
 i2c-s3c2410.ko
 sec_debug_mode.ko
 ems.ko
-zsmalloc.ko
-lzo.ko
-lzo-rle.ko
 ssg-iosched.ko
 blk-sec-stats.ko
 phy-exynos-mipi-dsim.ko
@@ -69,7 +66,6 @@ samsung-secure-iova.ko
 samsung_iommu.ko
 samsung-iommu-group.ko
 mali_kbase.ko
-zram.ko
 scsc_log_collection.ko
 scsc_logring.ko
 scsc_platform_mif.ko

@@ -20,6 +20,9 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 #include "ili9881x.h"
+#if IS_ENABLED(CONFIG_FB)
+#include <linux/fb.h>
+#endif
 
 /* Debug level */
 bool debug_en = DEBUG_OUTPUT;
@@ -497,6 +500,41 @@ static void ilitek_tddi_wq_init(void)
 	INIT_DELAYED_WORK(&ilits->work_print_info, ili_print_info_work);
 
 }
+
+#if IS_ENABLED(CONFIG_FB)
+static void ilitek_fb_resume_work(struct work_struct *work)
+{
+	if ((ilits->screen_off_sate != TP_EARLY_RESUME) && (ilits->screen_off_sate != TP_RESUME))
+		ili_sleep_handler(TP_EARLY_RESUME);
+	ili_sleep_handler(TP_RESUME);
+}
+
+int ilitek_fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data)
+{
+	struct ilitek_ts_data *ilits = container_of(self, struct ilitek_ts_data, fb_notif);
+	struct fb_event *evdata = data;
+	int *blank;
+
+	if (ilits->sysinput_seen)
+		return 0;
+
+	if (evdata && evdata->data && event == FB_EVENT_BLANK) {
+		blank = evdata->data;
+		switch (*blank) {
+		case FB_BLANK_POWERDOWN:
+			cancel_work_sync(&ilits->fb_resume_work);
+			ili_sleep_handler(TP_EARLY_SUSPEND);
+			break;
+		case FB_BLANK_UNBLANK:
+			schedule_work(&ilits->fb_resume_work);
+			break;
+		default:
+			break;
+		}
+	}
+	return 0;
+}
+#endif
 
 int ili_sleep_handler(int mode)
 {
@@ -1125,6 +1163,9 @@ int ili_tddi_init(void)
 
 	ili_ic_init();
 	ilitek_tddi_wq_init();
+#if IS_ENABLED(CONFIG_FB)
+	INIT_WORK(&ilits->fb_resume_work, ilitek_fb_resume_work);
+#endif
 
 	/* Must do hw reset once in first time for work normally if tp reset is avaliable */
 #if !TDDI_RST_BIND
@@ -1217,6 +1258,11 @@ void ili_dev_remove(void)
 
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 	cancel_delayed_work_sync(&ilits->work_vbus);
+#endif
+
+#if IS_ENABLED(CONFIG_FB)
+	fb_unregister_client(&ilits->fb_notif);
+	cancel_work_sync(&ilits->fb_resume_work);
 #endif
 
 	ili_shutdown_is_on_going_tsp = true;

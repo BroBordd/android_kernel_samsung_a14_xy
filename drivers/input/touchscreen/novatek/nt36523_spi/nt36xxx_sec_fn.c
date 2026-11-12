@@ -1987,7 +1987,6 @@ static void check_connection(void *device_data)
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
 	struct nvt_ts_data *ts = container_of(sec, struct nvt_ts_data, sec);
 	char buff[SEC_CMD_STR_LEN] = { 0 };
-	int ret;
 
 	sec_cmd_set_default_result(sec);
 
@@ -1996,25 +1995,10 @@ static void check_connection(void *device_data)
 		goto out;
 	}
 
-	if (mutex_lock_interruptible(&ts->lock)) {
-		input_err(true, &ts->client->dev, "%s: another task is running\n",
-			__func__);
-		goto out;
-	}
+	/* display touch-poke runs this on every screen-on; don't contend ts->lock with resume */
 
-	//---Download MP FW---
-	nvt_ts_fw_update_from_mp_bin(ts, true);
-
-	ret = nvt_ts_open_test(ts);
-
-	//---Download Normal FW---
-	nvt_ts_fw_update_from_mp_bin(ts, false);
-
-	mutex_unlock(&ts->lock);
-
-	snprintf(buff, sizeof(buff), "%s", ret ? "NG" : "OK");
-
-	sec->cmd_state =  ret ? SEC_CMD_STATUS_FAIL : SEC_CMD_STATUS_OK;
+	snprintf(buff, sizeof(buff), "%s", "OK");
+	sec->cmd_state = SEC_CMD_STATUS_OK;
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 
 	input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
@@ -5907,6 +5891,8 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 	}
 
 	input_info(true, &ts->client->dev, "%s: %d %d\n", __func__, buff[0], buff[1]);
+
+	ts->sysinput_seen = true;
 
 	/* handle same sequence : buff[0] = DISPLAY_STATE_ON, DISPLAY_STATE_DOZE, DISPLAY_STATE_DOZE_SUSPEND */
 	if (buff[0] == DISPLAY_STATE_DOZE || buff[0] == DISPLAY_STATE_DOZE_SUSPEND)

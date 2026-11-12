@@ -10,14 +10,15 @@ DEFCONFIG="exynos850-a14nsxx_defconfig"
 DEFCONFIG_FILE="arch/arm64/configs/$DEFCONFIG"
 
 # 0. Host dependencies (pahole for BTF; brotli/zip/lz4/cpio for the flashable zip)
+export PATH="$PATH:/sbin:/usr/sbin"
 need=""
-for t in pahole brotli zip lz4 cpio zstd; do
+for t in pahole brotli zip lz4 cpio zstd depmod; do
     command -v "$t" >/dev/null 2>&1 || need="$need $t"
 done
 if [ -n "$need" ]; then
     echo "[+] Installing missing tools:$need"
     SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO="sudo"
-    $SUDO apt-get update -y && $SUDO apt-get install -y dwarves brotli zip lz4 cpio zstd
+    $SUDO apt-get update -y && $SUDO apt-get install -y dwarves brotli zip lz4 cpio zstd kmod
 fi
 
 # 1. Toolchain
@@ -49,7 +50,16 @@ export DEPMOD=depmod
 export ARCH=arm64
 export TARGET_SOC=s5e3830
 
+# Modules that kernel_build/vboot_dlkm/modules.load expects (rtl8xxxu is only enabled in a14_defconfig)
+for opt in "CONFIG_WLAN_VENDOR_REALTEK=y" "CONFIG_RTL8XXXU=m"; do
+    grep -q "^$opt\$" "$DEFCONFIG_FILE" || echo "$opt" >> "$DEFCONFIG_FILE"
+done
+
 [ -f .config ] || make "$DEFCONFIG"
+if ! grep -q '^CONFIG_RTL8XXXU=m' .config; then
+    scripts/config --file .config -e WLAN_VENDOR_REALTEK -m RTL8XXXU
+    make olddefconfig
+fi
 make -j"$(nproc)" 2>&1 | tee build.log
 echo "[+] Kernel built: arch/arm64/boot/Image"
 

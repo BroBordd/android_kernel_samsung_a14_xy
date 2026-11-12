@@ -54,7 +54,7 @@ DIR="$(readlink -f .)"
 PARENT_DIR="$(readlink -f ${DIR}/..)"
 
 CLANG_DIR="$(pwd)/toolchain/clang/host/linux-x86/clang-r450784e"
-export PATH="$CLANG_DIR/bin:$PATH"
+export PATH="$CLANG_DIR/bin:$PATH:/sbin:/usr/sbin"
 export DTC_FLAGS="-@"
 export PLATFORM_VERSION=14
 export ANDROID_MAJOR_VERSION=u

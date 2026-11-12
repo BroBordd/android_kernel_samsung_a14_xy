@@ -7,3 +7,7 @@ out/
 modules_out/
 kernel_build/tmp/
 kernel_build/ExynosUnbound*
+modules_out/
+kernel_build/tmp/
+kernel_build/ExynosUnbound-*
+kernel_build/zip/*.img*

@@ -1,29 +1,58 @@
 #!/bin/bash
-# Galaxy A14: bootstrap deps + KernelSU-Next, then run the repo's packaging build (makes boot/vendor_boot + zip + tar).
+# Galaxy A14 (exynos850-a14nsxx) kernel build: toolchain + KernelSU bootstrap, then incremental build.
 set -e
 cd "$(dirname "$(readlink -f "$0")")"
+ROOT=$(pwd)
 
-# 0. Host dependencies
+CLANG_DIR="$ROOT/toolchain/clang/host/linux-x86/clang-r450784e"
+CLANG_URL="https://github.com/ravindu644/Android-Kernel-Tutorials/releases/download/toolchains/clang-r450784e.tar.gz"
+DEFCONFIG="exynos850-a14nsxx_defconfig"
+DEFCONFIG_FILE="arch/arm64/configs/$DEFCONFIG"
+
+# 0. Host dependencies (pahole for BTF; brotli/zip/lz4/cpio for the flashable zip)
 need=""
-for t in pahole brotli zip lz4 cpio zstd bc bison flex python3; do
+for t in pahole brotli zip lz4 cpio zstd; do
     command -v "$t" >/dev/null 2>&1 || need="$need $t"
 done
 if [ -n "$need" ]; then
     echo "[+] Installing missing tools:$need"
     SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO="sudo"
-    $SUDO apt-get update -y
-    $SUDO apt-get install -y dwarves brotli zip lz4 cpio zstd bc bison flex python3 libssl-dev libelf-dev xz-utils
+    $SUDO apt-get update -y && $SUDO apt-get install -y dwarves brotli zip lz4 cpio zstd
 fi
 
-# 1. KernelSU-Next
+# 1. Toolchain
+if [ ! -x "$CLANG_DIR/bin/clang" ]; then
+    echo "[+] Toolchain missing, downloading clang-r450784e..."
+    mkdir -p "$CLANG_DIR"
+    curl -L --fail "$CLANG_URL" | tar -xz -C "$CLANG_DIR"
+fi
+
+# 2. KernelSU-Next
 if [ ! -e KernelSU-Next/kernel/Kconfig ] || [ "$(readlink drivers/kernelsu 2>/dev/null)" != "../KernelSU-Next/kernel" ]; then
     echo "[+] KernelSU-Next missing, setting up..."
-    rm -rf KernelSU
-    rm -f drivers/kernelsu
+    rm -rf KernelSU            # remove old upstream KernelSU if present
+    rm -f drivers/kernelsu     # drop old symlink so setup relinks cleanly
     curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/dev/kernel/setup.sh" | bash -s -
 fi
-grep -q '^CONFIG_KSU=y' arch/arm64/configs/a14_defconfig || echo "CONFIG_KSU=y" >> arch/arm64/configs/a14_defconfig
+if ! grep -q '^CONFIG_KSU=y' "$DEFCONFIG_FILE"; then
+    echo "CONFIG_KSU=y" >> "$DEFCONFIG_FILE"
+    rm -f .config   # force regeneration with KSU enabled
+fi
 
-# 2. Build + package (toolchain is fetched by kernel_build/build.sh if missing; build is incremental in out/)
-./kernel_build/build.sh "$(pwd)"
-echo "[+] Output: kernel_build/ExynosUnbound-*_a14.zip and .tar"
+# 3. Build (incremental: no clean, .config only generated if missing)
+export PATH="$CLANG_DIR/bin:$PATH"
+export DTC_FLAGS="-@"
+export PLATFORM_VERSION=14
+export ANDROID_MAJOR_VERSION=u
+export LLVM=1
+export DEPMOD=depmod
+export ARCH=arm64
+export TARGET_SOC=s5e3830
+
+[ -f .config ] || make "$DEFCONFIG"
+make -j"$(nproc)" 2>&1 | tee build.log
+echo "[+] Kernel built: arch/arm64/boot/Image"
+
+# 4. Package flashable zip/tar from this in-tree build (no recompile, build state untouched)
+./kernel_build/pack.sh "$ROOT"
+ls kernel_build/ExynosUnbound-*_a14.zip

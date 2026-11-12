@@ -3,3 +3,7 @@ KernelSU/
 KernelSU-Next/
 drivers/kernelsu
 build.log
+out/
+modules_out/
+kernel_build/tmp/
+kernel_build/ExynosUnbound*
